@@ -1,0 +1,253 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>GPS Coordinate Map</title>
+    
+    <!-- Leaflet CSS -->
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"
+          crossorigin="anonymous"/>
+    
+    <style>
+        body, html {
+            margin: 0;
+            padding: 0;
+            height: 100%;
+            width: 100%;
+            overflow: hidden;
+        }
+        #map {
+            height: 100%;
+            width: 100%;
+        }
+        .coordinate-marker {
+            background-color: #ff4444;
+            border: 2px solid white;
+            border-radius: 50%;
+            width: 12px;
+            height: 12px;
+        }
+        .marker-label {
+            background-color: white;
+            border: 1px solid #333;
+            border-radius: 3px;
+            padding: 2px 6px;
+            font-size: 11px;
+            font-weight: bold;
+            white-space: nowrap;
+        }
+    </style>
+</head>
+<body>
+    <div id="map"></div>
+    
+    <!-- Leaflet JS -->
+    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"
+            crossorigin="anonymous"></script>
+    
+    <!-- Qt WebChannel for Python communication -->
+    <script src="qrc:///qtwebchannel/qwebchannel.js"></script>
+    
+    <script>
+        // Global variables
+        var map;
+        var markers = [];
+        var markerCounter = 0;
+        var markerIcon;
+        var qtBridge = null;
+        
+        // Initialize Qt WebChannel bridge
+        function initQtBridge() {
+            return new Promise(function(resolve, reject) {
+                if (typeof QWebChannel !== 'undefined' && typeof qt !== 'undefined' && qt.webChannelTransport) {
+                    new QWebChannel(qt.webChannelTransport, function(channel) {
+                        qtBridge = channel.objects.qtBridge;
+                        console.log('Qt Bridge initialized successfully');
+                        resolve();
+                    });
+                } else {
+                    console.warn('QWebChannel not available - running without Python bridge');
+                    setTimeout(function() {
+                        // Try again after a delay
+                        if (typeof QWebChannel !== 'undefined' && typeof qt !== 'undefined' && qt.webChannelTransport) {
+                            new QWebChannel(qt.webChannelTransport, function(channel) {
+                                qtBridge = channel.objects.qtBridge;
+                                console.log('Qt Bridge initialized successfully (delayed)');
+                                resolve();
+                            });
+                        } else {
+                            console.warn('QWebChannel still not available');
+                            resolve(); // Continue anyway
+                        }
+                    }, 500);
+                }
+            });
+        }
+        
+        // Initialize the map when Leaflet is fully loaded
+        function initializeMap() {
+            try {
+                console.log('Initializing map...');
+                
+                if (typeof L === 'undefined') {
+                    console.error('Leaflet (L) is not defined! Check if the library loaded correctly.');
+                    document.getElementById('map').innerHTML = '<div style="padding: 20px; text-align: center;">' +
+                        '<h3>Error: Map library failed to load</h3>' +
+                        '<p>Please check your internet connection and try again.</p></div>';
+                    return;
+                }
+                
+                // Initialize Qt Bridge first and wait for it
+                initQtBridge().then(function() {
+                    console.log('Bridge ready, now setting up map...');
+                    
+                    // Initialize the map
+                    map = L.map('map').setView([40.7128, -74.0060], 13);
+            
+                    // Add OpenStreetMap tiles
+                    L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+                        attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors',
+                        maxZoom: 19
+                    }).addTo(map);
+                    
+                    // Custom icon for markers
+                    markerIcon = L.divIcon({
+                        className: 'coordinate-marker',
+                        iconSize: [12, 12],
+                        iconAnchor: [6, 6]
+                    });
+                    
+                    // Set up map click handler
+                    setupMapHandlers();
+                    
+                    console.log('Map initialized successfully');
+                });
+            } catch (error) {
+                console.error('Error initializing map:', error);
+                document.getElementById('map').innerHTML = '<div style="padding: 20px; text-align: center;">' +
+                    '<h3>Error initializing map</h3>' +
+                    '<p>' + error.message + '</p></div>';
+            }
+        }
+        
+        // Set up map event handlers
+        function setupMapHandlers() {
+            // Add click event to map
+            map.on('click', function(e) {
+                markerCounter++;
+                var label = 'Point ' + markerCounter;
+                
+                var marker = L.marker([e.latlng.lat, e.latlng.lng], {
+                    icon: markerIcon,
+                    draggable: false
+                }).addTo(map);
+                
+                // Bind popup with coordinate info
+                marker.bindPopup(
+                    '<div class="marker-label">' +
+                    '<strong>' + label + '</strong><br>' +
+                    'Lat: ' + e.latlng.lat.toFixed(6) + '<br>' +
+                    'Lon: ' + e.latlng.lng.toFixed(6) +
+                    '</div>'
+                );
+                
+                // Store marker data
+                marker._order = markerCounter;
+                marker._label = label;
+                markers.push(marker);
+                
+                // Double-click to remove marker
+                marker.on('dblclick', function() {
+                    map.removeLayer(marker);
+                    var index = markers.indexOf(marker);
+                    if (index > -1) {
+                        markers.splice(index, 1);
+                    }
+                });
+                
+                // Send coordinate to Python
+                console.log('Attempting to send coordinate to Python:', e.latlng.lat, e.latlng.lng, markerCounter, label);
+                if (qtBridge && qtBridge.coordinateClicked) {
+                    qtBridge.coordinateClicked(
+                        e.latlng.lat, 
+                        e.latlng.lng, 
+                        markerCounter, 
+                        label
+                    );
+                    console.log('Coordinate sent to Python successfully');
+                } else {
+                    console.warn('Qt Bridge not available - coordinate not sent to Python');
+                }
+            });
+        }
+        
+        // Function to clear all markers
+        function clearAllMarkers() {
+            if (!map) return;
+            markers.forEach(function(marker) {
+                map.removeLayer(marker);
+            });
+            markers = [];
+            markerCounter = 0;
+        }
+        
+        // Function to set map center and zoom
+        function setMapView(lat, lon, zoom) {
+            if (!map) return;
+            map.setView([lat, lon], zoom);
+        }
+        
+        // Function to add a marker programmatically
+        function addMarker(lat, lon, order, label) {
+            if (!map) return;
+            var marker = L.marker([lat, lon], {
+                icon: markerIcon,
+                draggable: false
+            }).addTo(map);
+            
+            marker.bindPopup(
+                '<div class="marker-label">' +
+                '<strong>' + label + '</strong><br>' +
+                'Lat: ' + lat.toFixed(6) + '<br>' +
+                'Lon: ' + lon.toFixed(6) +
+                '</div>'
+            );
+            
+            marker._order = order;
+            marker._label = label;
+            markers.push(marker);
+            
+            marker.on('dblclick', function() {
+                map.removeLayer(marker);
+                var index = markers.indexOf(marker);
+                if (index > -1) {
+                    markers.splice(index, 1);
+                }
+            });
+            
+            if (markerCounter < order) {
+                markerCounter = order;
+            }
+        }
+        
+        // Function to get all markers data
+        function getAllMarkers() {
+            return markers.map(function(marker) {
+                return {
+                    lat: marker.getLatLng().lat,
+                    lon: marker.getLatLng().lng,
+                    order: marker._order,
+                    label: marker._label
+                };
+            });
+        }
+        
+        // Initialize when window is fully loaded (including external scripts)
+        window.addEventListener('load', function() {
+            console.log('Window loaded, initializing map...');
+            initializeMap();
+        });
+    </script>
+</body>
+</html>
