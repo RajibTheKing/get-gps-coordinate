@@ -64,6 +64,63 @@ class MainWindow(QMainWindow):
         central_widget = QWidget()
         self.setCentralWidget(central_widget)
         
+        # Apply global stylesheet for better visibility
+        self.setStyleSheet("""
+            QMainWindow {
+                background-color: #ecf0f1;
+            }
+            QPushButton {
+                background-color: #3498db;
+                color: white;
+                border: none;
+                padding: 8px 16px;
+                border-radius: 4px;
+                font-weight: bold;
+                font-size: 11px;
+            }
+            QPushButton:hover {
+                background-color: #2980b9;
+            }
+            QPushButton:pressed {
+                background-color: #21618c;
+            }
+            QLineEdit {
+                padding: 6px;
+                border: 2px solid #bdc3c7;
+                border-radius: 4px;
+                background-color: white;
+                color: #2c3e50;
+                font-size: 11px;
+            }
+            QLineEdit:focus {
+                border: 2px solid #3498db;
+            }
+            QListWidget {
+                background-color: white;
+                border: 1px solid #bdc3c7;
+                border-radius: 4px;
+                color: #2c3e50;
+                font-size: 11px;
+            }
+            QListWidget::item {
+                padding: 5px;
+            }
+            QListWidget::item:selected {
+                background-color: #3498db;
+                color: white;
+            }
+            QStatusBar {
+                background-color: #34495e;
+                color: white;
+                font-weight: bold;
+                font-size: 12px;
+                padding: 5px;
+            }
+            QStatusBar::item {
+                border: none;
+            }
+        """)
+        
         # Main layout
         main_layout = QVBoxLayout(central_widget)
         main_layout.setContentsMargins(10, 10, 10, 10)
@@ -103,6 +160,7 @@ class MainWindow(QMainWindow):
         
         # Search label
         search_label = QLabel("Search Location:")
+        search_label.setStyleSheet("font-weight: bold; font-size: 12px; color: #2c3e50;")
         layout.addWidget(search_label)
         
         # Search input
@@ -131,22 +189,68 @@ class MainWindow(QMainWindow):
         
         # Coordinates group box
         coords_group = QGroupBox("Selected Coordinates")
+        coords_group.setStyleSheet("""
+            QGroupBox {
+                font-weight: bold;
+                font-size: 13px;
+                color: #2c3e50;
+                border: 2px solid #bdc3c7;
+                border-radius: 5px;
+                margin-top: 10px;
+                padding-top: 10px;
+            }
+            QGroupBox::title {
+                subcontrol-origin: margin;
+                subcontrol-position: top left;
+                left: 10px;
+                padding: 0 5px;
+                background-color: white;
+                color: #2c3e50;
+            }
+        """)
         coords_layout = QVBoxLayout(coords_group)
         
         # Coordinate list
         self.coordinate_list = QListWidget()
-        self.coordinate_list.setAlternatingRowColors(True)
+        self.coordinate_list.setAlternatingRowColors(False)
         coords_layout.addWidget(self.coordinate_list)
         
         # Info label
         self.info_label = QLabel("Total Points: 0")
         self.info_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        self.info_label.setStyleSheet("""
+            font-weight: bold;
+            font-size: 12px;
+            color: #2c3e50;
+            background-color: #ecf0f1;
+            padding: 8px;
+            border-radius: 3px;
+        """)
         coords_layout.addWidget(self.info_label)
         
         layout.addWidget(coords_group)
         
         # Control buttons group
         control_group = QGroupBox("Actions")
+        control_group.setStyleSheet("""
+            QGroupBox {
+                font-weight: bold;
+                font-size: 13px;
+                color: #2c3e50;
+                border: 2px solid #bdc3c7;
+                border-radius: 5px;
+                margin-top: 10px;
+                padding-top: 10px;
+            }
+            QGroupBox::title {
+                subcontrol-origin: margin;
+                subcontrol-position: top left;
+                left: 10px;
+                padding: 0 5px;
+                background-color: white;
+                color: #2c3e50;
+            }
+        """)
         control_layout = QVBoxLayout(control_group)
         
         # Clear button
@@ -174,7 +278,15 @@ class MainWindow(QMainWindow):
             "• Scroll to zoom, drag to pan"
         )
         instructions.setWordWrap(True)
-        instructions.setStyleSheet("padding: 10px; background-color: #f0f0f0; border-radius: 5px;")
+        instructions.setStyleSheet("""
+            padding: 12px;
+            background-color: #d5dbdb;
+            border: 1px solid #95a5a6;
+            border-radius: 5px;
+            color: #2c3e50;
+            font-size: 11px;
+            line-height: 1.4;
+        """)
         layout.addWidget(instructions)
         
         layout.addStretch()
