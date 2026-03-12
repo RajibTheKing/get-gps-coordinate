@@ -5,6 +5,7 @@ This module defines the Coordinate class that represents a geographic point
 with latitude, longitude, and metadata.
 """
 
+import math
 from dataclasses import dataclass, asdict
 from typing import Dict, Any
 
@@ -19,12 +20,14 @@ class Coordinate:
         longitude (float): The longitude in decimal degrees (-180 to 180)
         order (int): The order in which this coordinate was selected
         label (str): A human-readable label for this coordinate
+        distance (float): Cumulative distance in meters from the start point
     """
     
     latitude: float
     longitude: float
     order: int
     label: str = ""
+    distance: float = 0.0
     
     def __post_init__(self):
         """Validate coordinate values after initialization."""
@@ -54,6 +57,36 @@ class Coordinate:
     def __str__(self) -> str:
         """String representation of the coordinate."""
         return f"{self.label} ({self.latitude:.6f}, {self.longitude:.6f})"
+    
+    @staticmethod
+    def calculate_distance(coord1: 'Coordinate', coord2: 'Coordinate') -> float:
+        """
+        Calculate the distance between two coordinates using the Haversine formula.
+        
+        Args:
+            coord1: First coordinate
+            coord2: Second coordinate
+            
+        Returns:
+            Distance in meters
+        """
+        # Earth's radius in meters
+        R = 6371000
+        
+        # Convert degrees to radians
+        lat1_rad = math.radians(coord1.latitude)
+        lat2_rad = math.radians(coord2.latitude)
+        delta_lat = math.radians(coord2.latitude - coord1.latitude)
+        delta_lon = math.radians(coord2.longitude - coord1.longitude)
+        
+        # Haversine formula
+        a = (math.sin(delta_lat / 2) ** 2 +
+             math.cos(lat1_rad) * math.cos(lat2_rad) *
+             math.sin(delta_lon / 2) ** 2)
+        c = 2 * math.atan2(math.sqrt(a), math.sqrt(1 - a))
+        distance = R * c
+        
+        return distance
     
     def __repr__(self) -> str:
         """Developer-friendly representation."""

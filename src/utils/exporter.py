@@ -59,7 +59,7 @@ class CoordinateExporter:
                 writer = csv.writer(f)
                 
                 # Write header
-                writer.writerow(['Order', 'Latitude', 'Longitude', 'Label'])
+                writer.writerow(['Order', 'Latitude', 'Longitude', 'Label', 'Distance (meters)', 'Distance (km)'])
                 
                 # Write data
                 for coord in coordinates:
@@ -67,7 +67,9 @@ class CoordinateExporter:
                         coord.order,
                         f"{coord.latitude:.6f}",
                         f"{coord.longitude:.6f}",
-                        coord.label
+                        coord.label,
+                        f"{coord.distance:.2f}",
+                        f"{coord.distance / 1000:.3f}"
                     ])
             
             return True
@@ -96,7 +98,8 @@ class CoordinateExporter:
                     latitude=coord_data['latitude'],
                     longitude=coord_data['longitude'],
                     order=coord_data['order'],
-                    label=coord_data.get('label', '')
+                    label=coord_data.get('label', ''),
+                    distance=coord_data.get('distance', 0.0)
                 )
                 coordinates.append(coord)
             

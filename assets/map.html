@@ -56,6 +56,7 @@
         var markerCounter = 0;
         var markerIcon;
         var qtBridge = null;
+        var coordinates = []; // Store coordinate data with distances
         
         // Initialize Qt WebChannel bridge
         function initQtBridge() {
@@ -83,6 +84,32 @@
                     }, 500);
                 }
             });
+        }
+        
+        // Calculate distance between two points using Haversine formula
+        function calculateDistance(lat1, lon1, lat2, lon2) {
+            var R = 6371000; // Earth's radius in meters
+            var lat1Rad = lat1 * Math.PI / 180;
+            var lat2Rad = lat2 * Math.PI / 180;
+            var deltaLat = (lat2 - lat1) * Math.PI / 180;
+            var deltaLon = (lon2 - lon1) * Math.PI / 180;
+            
+            var a = Math.sin(deltaLat / 2) * Math.sin(deltaLat / 2) +
+                    Math.cos(lat1Rad) * Math.cos(lat2Rad) *
+                    Math.sin(deltaLon / 2) * Math.sin(deltaLon / 2);
+            var c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+            var distance = R * c;
+            
+            return distance;
+        }
+        
+        // Format distance for display
+        function formatDistance(distance) {
+            if (distance >= 1000) {
+                return (distance / 1000).toFixed(2) + ' km';
+            } else {
+                return distance.toFixed(2) + ' m';
+            }
         }
         
         // Initialize the map when Leaflet is fully loaded
@@ -138,23 +165,54 @@
                 markerCounter++;
                 var label = 'Point ' + markerCounter;
                 
+                // Calculate cumulative distance
+                var cumulativeDistance = 0;
+                var segmentDistance = 0;
+                if (coordinates.length > 0) {
+                    var prevCoord = coordinates[coordinates.length - 1];
+                    segmentDistance = calculateDistance(
+                        prevCoord.lat, prevCoord.lon,
+                        e.latlng.lat, e.latlng.lng
+                    );
+                    cumulativeDistance = prevCoord.distance + segmentDistance;
+                }
+                
+                // Store coordinate data
+                var coordData = {
+                    lat: e.latlng.lat,
+                    lon: e.latlng.lng,
+                    order: markerCounter,
+                    label: label,
+                    distance: cumulativeDistance
+                };
+                coordinates.push(coordData);
+                
                 var marker = L.marker([e.latlng.lat, e.latlng.lng], {
                     icon: markerIcon,
                     draggable: false
                 }).addTo(map);
                 
-                // Bind popup with coordinate info
-                marker.bindPopup(
-                    '<div class="marker-label">' +
+                // Build popup content with distance info
+                var popupContent = '<div class="marker-label">' +
                     '<strong>' + label + '</strong><br>' +
                     'Lat: ' + e.latlng.lat.toFixed(6) + '<br>' +
-                    'Lon: ' + e.latlng.lng.toFixed(6) +
-                    '</div>'
-                );
+                    'Lon: ' + e.latlng.lng.toFixed(6) + '<br>';
+                
+                if (markerCounter === 1) {
+                    popupContent += 'Distance: 0.00 m';
+                } else {
+                    popupContent += 'Segment: ' + formatDistance(segmentDistance) + '<br>';
+                    popupContent += 'Cumulative: ' + formatDistance(cumulativeDistance);
+                }
+                popupContent += '</div>';
+                
+                // Bind popup with coordinate and distance info
+                marker.bindPopup(popupContent);
                 
                 // Store marker data
                 marker._order = markerCounter;
                 marker._label = label;
+                marker._coordIndex = coordinates.length - 1;
                 markers.push(marker);
                 
                 // Double-click to remove marker
@@ -164,6 +222,8 @@
                     if (index > -1) {
                         markers.splice(index, 1);
                     }
+                    // Note: Not removing from coordinates array to maintain Python sync
+                    // The Python side handles the coordinate list
                 });
                 
                 // Send coordinate to Python
@@ -189,6 +249,7 @@
                 map.removeLayer(marker);
             });
             markers = [];
+            coordinates = [];
             markerCounter = 0;
         }
         
@@ -199,24 +260,56 @@
         }
         
         // Function to add a marker programmatically
-        function addMarker(lat, lon, order, label) {
+        function addMarker(lat, lon, order, label, distance) {
             if (!map) return;
+            
+            distance = distance || 0; // Default to 0 if not provided
+            
             var marker = L.marker([lat, lon], {
                 icon: markerIcon,
                 draggable: false
             }).addTo(map);
             
-            marker.bindPopup(
-                '<div class="marker-label">' +
+            // Calculate segment distance if not first marker
+            var segmentDistance = 0;
+            if (coordinates.length > 0 && order > 1) {
+                var prevCoord = coordinates[coordinates.length - 1];
+                segmentDistance = calculateDistance(
+                    prevCoord.lat, prevCoord.lon,
+                    lat, lon
+                );
+            }
+            
+            // Build popup content with distance info
+            var popupContent = '<div class="marker-label">' +
                 '<strong>' + label + '</strong><br>' +
                 'Lat: ' + lat.toFixed(6) + '<br>' +
-                'Lon: ' + lon.toFixed(6) +
-                '</div>'
-            );
+                'Lon: ' + lon.toFixed(6) + '<br>';
+            
+            if (order === 1) {
+                popupContent += 'Distance: 0.00 m';
+            } else {
+                if (segmentDistance > 0) {
+                    popupContent += 'Segment: ' + formatDistance(segmentDistance) + '<br>';
+                }
+                popupContent += 'Cumulative: ' + formatDistance(distance);
+            }
+            popupContent += '</div>';
+            
+            marker.bindPopup(popupContent);
             
             marker._order = order;
             marker._label = label;
             markers.push(marker);
+            
+            // Store coordinate data
+            coordinates.push({
+                lat: lat,
+                lon: lon,
+                order: order,
+                label: label,
+                distance: distance
+            });
             
             marker.on('dblclick', function() {
                 map.removeLayer(marker);
@@ -233,12 +326,13 @@
         
         // Function to get all markers data
         function getAllMarkers() {
-            return markers.map(function(marker) {
+            return coordinates.map(function(coord) {
                 return {
-                    lat: marker.getLatLng().lat,
-                    lon: marker.getLatLng().lng,
-                    order: marker._order,
-                    label: marker._label
+                    lat: coord.lat,
+                    lon: coord.lon,
+                    order: coord.order,
+                    label: coord.label,
+                    distance: coord.distance
                 };
             });
         }

@@ -147,7 +147,7 @@ class MapWidget(QWebEngineView):
         Args:
             coordinate: Coordinate object to add
         """
-        script = f"addMarker({coordinate.latitude}, {coordinate.longitude}, {coordinate.order}, '{coordinate.label}');"
+        script = f"addMarker({coordinate.latitude}, {coordinate.longitude}, {coordinate.order}, '{coordinate.label}', {coordinate.distance});"
         self.page().runJavaScript(script)
     
     def get_all_markers(self):

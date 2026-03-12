@@ -193,25 +193,58 @@ class MainWindow(QMainWindow):
             coordinate: Selected coordinate
         """
         print(f"MainWindow: Received coordinate: {coordinate}")
+        
+        # Calculate cumulative distance
+        if len(self.coordinates) == 0:
+            # First point, distance is 0
+            coordinate.distance = 0.0
+        else:
+            # Calculate distance from previous point and add to cumulative total
+            previous_coord = self.coordinates[-1]
+            segment_distance = Coordinate.calculate_distance(previous_coord, coordinate)
+            coordinate.distance = previous_coord.distance + segment_distance
+        
         self.coordinates.append(coordinate)
-        print(f"MainWindow: Total coordinates: {len(self.coordinates)}")
+        print(f"MainWindow: Total coordinates: {len(self.coordinates)}, Distance: {coordinate.distance:.2f}m")
         self._update_coordinate_list()
-        self.statusBar().showMessage(
-            f"Added: {coordinate.label} - Lat: {coordinate.latitude:.6f}, Lon: {coordinate.longitude:.6f}"
-        )
+        
+        # Update status bar with distance info
+        if coordinate.order == 1:
+            status_msg = f"Added: {coordinate.label} - Lat: {coordinate.latitude:.6f}, Lon: {coordinate.longitude:.6f} - Distance: 0.00m"
+        else:
+            previous_coord = self.coordinates[-2]
+            segment_distance = Coordinate.calculate_distance(previous_coord, coordinate)
+            status_msg = (f"Added: {coordinate.label} - Lat: {coordinate.latitude:.6f}, Lon: {coordinate.longitude:.6f} - "
+                         f"Segment: {segment_distance:.2f}m, Cumulative: {coordinate.distance:.2f}m")
+        
+        self.statusBar().showMessage(status_msg)
     
     def _update_coordinate_list(self):
         """Update the coordinate list display."""
         self.coordinate_list.clear()
         
         for coord in self.coordinates:
+            # Format distance
+            if coord.distance >= 1000:
+                distance_str = f"{coord.distance / 1000:.2f} km"
+            else:
+                distance_str = f"{coord.distance:.2f} m"
+            
             item_text = (
                 f"{coord.order}. {coord.label} - "
-                f"({coord.latitude:.6f}, {coord.longitude:.6f})"
+                f"({coord.latitude:.6f}, {coord.longitude:.6f}) - "
+                f"Distance: {distance_str}"
             )
             self.coordinate_list.addItem(item_text)
         
-        self.info_label.setText(f"Total Points: {len(self.coordinates)}")
+        # Calculate total distance
+        total_distance = self.coordinates[-1].distance if self.coordinates else 0
+        if total_distance >= 1000:
+            total_distance_str = f"{total_distance / 1000:.2f} km"
+        else:
+            total_distance_str = f"{total_distance:.2f} m"
+        
+        self.info_label.setText(f"Total Points: {len(self.coordinates)} | Total Distance: {total_distance_str}")
     
     def _clear_all_coordinates(self):
         """Clear all coordinates from the list and map."""
