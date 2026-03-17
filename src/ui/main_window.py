@@ -253,6 +253,22 @@ class MainWindow(QMainWindow):
         """)
         control_layout = QVBoxLayout(control_group)
         
+        # Import button
+        self.import_json_button = QPushButton("Import from JSON")
+        self.import_json_button.clicked.connect(self._import_coordinates)
+        self.import_json_button.setStyleSheet("""
+            QPushButton {
+                background-color: #27ae60;
+            }
+            QPushButton:hover {
+                background-color: #229954;
+            }
+            QPushButton:pressed {
+                background-color: #1e8449;
+            }
+        """)
+        control_layout.addWidget(self.import_json_button)
+        
         # Clear button
         self.clear_button = QPushButton("Clear All Markers")
         self.clear_button.clicked.connect(self._clear_all_coordinates)
@@ -275,6 +291,7 @@ class MainWindow(QMainWindow):
             "• Click on map to add points<br>"
             "• Double-click marker to remove<br>"
             "• Use search to find locations<br>"
+            "• Import JSON to restore markers<br>"
             "• Scroll to zoom, drag to pan"
         )
         instructions.setWordWrap(True)
@@ -488,3 +505,65 @@ class MainWindow(QMainWindow):
                     f"Failed to export coordinates to {format_type.upper()} file."
                 )
                 self.statusBar().showMessage("Export failed")
+    
+    def _import_coordinates(self):
+        """Import coordinates from a JSON file."""
+        # Check if there are existing coordinates
+        if self.coordinates:
+            reply = QMessageBox.question(
+                self,
+                'Import Coordinates',
+                'Importing will clear existing coordinates. Continue?',
+                QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No,
+                QMessageBox.StandardButton.No
+            )
+            
+            if reply != QMessageBox.StandardButton.Yes:
+                return
+        
+        # File dialog
+        filepath, _ = QFileDialog.getOpenFileName(
+            self,
+            "Import from JSON",
+            str(Path.home()),
+            "JSON Files (*.json)"
+        )
+        
+        if filepath:
+            # Import coordinates
+            imported_coords = CoordinateExporter.import_from_json(filepath)
+            
+            if imported_coords:
+                # Clear existing coordinates and map
+                self.coordinates.clear()
+                self.map_widget.clear_all_markers()
+                
+                # Add imported coordinates to the map and list
+                for coord in imported_coords:
+                    # Add to Python-side list
+                    self.coordinates.append(coord)
+                    
+                    # Add to map (JavaScript side)
+                    self.map_widget.add_marker(coord)
+                
+                # Update the coordinate list UI
+                self._update_coordinate_list()
+                
+                # Center map on first coordinate if available
+                if imported_coords:
+                    first_coord = imported_coords[0]
+                    self.map_widget.set_view(first_coord.latitude, first_coord.longitude, 13)
+                
+                QMessageBox.information(
+                    self,
+                    "Import Successful",
+                    f"Successfully imported {len(imported_coords)} coordinates from:\n{filepath}"
+                )
+                self.statusBar().showMessage(f"Imported {len(imported_coords)} coordinates from JSON")
+            else:
+                QMessageBox.critical(
+                    self,
+                    "Import Failed",
+                    f"Failed to import coordinates from JSON file.\n\nPlease ensure the file is a valid coordinate export."
+                )
+                self.statusBar().showMessage("Import failed")
