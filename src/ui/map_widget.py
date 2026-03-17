@@ -6,11 +6,38 @@ This module provides an interactive map widget using Leaflet.js and OpenStreetMa
 
 import os
 from pathlib import Path
-from PyQt6.QtCore import QUrl, pyqtSignal, pyqtSlot, QObject
+from PyQt6.QtCore import QUrl, pyqtSignal, pyqtSlot, QObject, QByteArray
 from PyQt6.QtWebEngineWidgets import QWebEngineView
-from PyQt6.QtWebEngineCore import QWebEngineSettings
+from PyQt6.QtWebEngineCore import QWebEngineSettings, QWebEngineUrlRequestInterceptor, QWebEngineProfile
 from PyQt6.QtWebChannel import QWebChannel
 from ..models.coordinate import Coordinate
+
+
+class UrlRequestInterceptor(QWebEngineUrlRequestInterceptor):
+    """
+    Intercepts URL requests to add custom headers for tile servers.
+    This fixes the OpenStreetMap Referer requirement issue.
+    """
+    
+    def interceptRequest(self, info):
+        """
+        Intercept and modify URL requests.
+        
+        Args:
+            info: QWebEngineUrlRequestInfo object
+        """
+        url = info.requestUrl().toString()
+        
+        # Add Referer header for OpenStreetMap tile requests
+        if 'tile.openstreetmap.org' in url:
+            info.setHttpHeader(QByteArray(b'Referer'), QByteArray(b'https://www.openstreetmap.org/'))
+            info.setHttpHeader(QByteArray(b'User-Agent'), 
+                             QByteArray(b'GPS Coordinate Picker Application'))
+        
+        # Also add headers for other tile providers if needed
+        elif 'basemaps.cartocdn.com' in url or 'arcgisonline.com' in url:
+            info.setHttpHeader(QByteArray(b'User-Agent'), 
+                             QByteArray(b'GPS Coordinate Picker Application'))
 
 
 class Bridge(QObject):
@@ -56,6 +83,11 @@ class MapWidget(QWebEngineView):
             parent: Parent widget
         """
         super().__init__(parent)
+        
+        # Set up URL request interceptor to fix tile server access
+        self.interceptor = UrlRequestInterceptor()
+        profile = QWebEngineProfile.defaultProfile()
+        profile.setUrlRequestInterceptor(self.interceptor)
         
         # Enable web settings to allow loading external resources
         settings = self.settings()
