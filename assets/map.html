@@ -130,7 +130,8 @@
                     console.log('Bridge ready, now setting up map...');
                     
                     // Initialize the map (without adding a base layer yet)
-                    map = L.map('map').setView([40.7128, -74.0060], 13);
+                    // Default location: Lütjenburg, Germany
+                    map = L.map('map').setView([54.2833, 10.5833], 13);
             
                     // Define multiple tile layers
                     var baseLayers = {
@@ -164,7 +165,7 @@
                     };
                     
                     // Add default layer (CartoDB Voyager - no Referer requirement)
-                    baseLayers["CartoDB Voyager"].addTo(map);
+                    baseLayers["OpenStreetMap"].addTo(map);
                     
                     // Add layer control to allow switching between tile providers
                     L.control.layers(baseLayers, null, {
